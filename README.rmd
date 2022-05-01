@@ -6,12 +6,22 @@ output:
     keep_md: yes
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width=9.877, fig.height=5.556)
+```
 
+```{r libraries, include=FALSE}
+library(knitr)
+library(dplyr)
+library(lubridate)
+library(stringr)
+library(tidyr)
+library(scales)
+library(ggplot2)
+library(ggthemes)
+```
 
-
-
-
-```r
+```{r}
   theme_davidish <- function(){
     theme_minimal() %+replace% 
       theme(panel.grid = element_blank(),
@@ -26,6 +36,7 @@ output:
             plot.caption.position = "plot",
             plot.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"))
   }
+
 ```
 
 
@@ -51,18 +62,14 @@ The population for each quarter comes from Infoshare at Stats NZ, https://infosh
 * Time: Latest Quarter (2021Q4) to 2009Q4 inclusive
 
 
-
-```r
+```{r out.width="60%"}
 include_graphics("infoshareScreen.png") 
 ```
-
-<img src="infoshareScreen.png" width="60%" />
 
 I also changed the submission setting at the bottom of the form from Table on screen to 
 Comma delimited (.csv), downloaded the file and saved it locally.
 
-
-```r
+```{r}
 weekly_deaths <- read.csv("NZ_weekly_deaths.csv") %>%
   mutate(Period = ymd(Period))
 quarterly_pop <- read.csv("DPE403901_20220429_062743_16.csv", skip=3) %>%
@@ -97,21 +104,9 @@ quarterly_pop <- read.csv("DPE403901_20220429_062743_16.csv", skip=3) %>%
 ## Sense checking input
 Just checking weekly deaths has 1 entry per week per age group, and population has 1 entry per quarter per age group.
 
-
-```r
+```{r}
 weekly_deaths %>% count(Period, Label1) %>% filter(n > 1) %>% nrow()
-```
-
-```
-## [1] 0
-```
-
-```r
 quarterly_pop %>% count(Period, age_set) %>% filter(n > 1) %>% nrow()
-```
-
-```
-## [1] 0
 ```
 and there are no non-one entries, so all is good there.
 
@@ -121,8 +116,7 @@ For creating mortality rates, we divide the number of deaths by the population. 
 
 So a good plan is to explore how population has changed to date.
 
-
-```r
+```{r}
 q_pop <- read.csv("DPE403901_20220429_062743_16.csv", skip=3) %>%
   filter(!is.na(X0.4.Years)) %>%
   gather(key="age_set", value="population", -1) %>%
@@ -157,14 +151,11 @@ ggplot(q_pop, aes(x=Period, y=population)) +
        title="Quarterly population by 5 year age groups") +
   theme_davidish()
 ```
-
-![](README_files/figure-html/unnamed-chunk-5-1.png)<!-- -->
 Because the subcomponent age groups have seen, in some cases, dramatic changes in direction in the recent past, to estimate March and May 2022 it seems best to extend from the last 3 entries in 2021. 
 
 But until making this graph I really had not appreciated how much the age distribution had changed in 2020-2021. Both older people not dying and younger no new working holiday etc arriving as existing ones return to other countries contribute to a drastic shift older in the data. Using death or population numbers from pre-2020 without building this change into the analysis in some manner (such as I am doing in this) is going to throw things out by a long way.
 
-
-```r
+```{r}
 new_pop <- q_pop %>%
   arrange(age_set, desc(Period)) %>%
   group_by(age_set) %>%
@@ -228,12 +219,12 @@ mortality_data <- weekly_deaths %>%
          Week = week(Period),
          Ages = factor(Label1)) %>%
   select(Period, Label1, deaths_per_capita, weekly_pop, Year, Week)
+
 ```
 
 As a sense check, having calculated the weekly population estimates from the quarterly values it can be a good idea to just check the calculated results follow a sensible progression between quarterly values.
 
-
-```r
+```{r}
 original_pop <- quarterly_pop %>%
   group_by(Period,Label1) %>%
   summarise(weekly_pop = sum(population), .groups = "drop") %>%
@@ -246,8 +237,6 @@ ggplot(mortality_data, aes(x=Period, y=weekly_pop)) +
        x="Date", y="Population") + theme_davidish()
 ```
 
-![](README_files/figure-html/unnamed-chunk-7-1.png)<!-- -->
-
 The interpolated values look to be taking sensible steps between the official values. So all is good there.
 
 I am also aware that this change is going to, itself, be trwon out by the border reopens going on over Q2 2022. However, for this particular data analysis I am only including data a few days into Q2, the population as of the end of Q2 does not have any significant effect on this.
@@ -257,17 +246,13 @@ I am also aware that this change is going to, itself, be trwon out by the border
 Excess mortality is based on the change from the expected amount. But as different countries have different overall patterns of mortality over time, the results from from an expected calculation best suited to an all countries case are different to focusing on a particular country.
 
 
-
-```r
+```{r out.width="50%"}
 include_graphics("worldbank.png") 
 ```
 
-<img src="worldbank.png" width="50%" />
-
 A generalised approach is to assume a continuation of past years. A common approach is to take a mean of a collection of years, but in the event the dataset includes countries with a rising or falling pattern in mortality, it may be more accurate to take a regression prediction based on the trend.
 
-
-```r
+```{r}
 mortality_data %>%
   filter(Year < 2020) %>%
   ggplot(aes(x=Week, y=deaths_per_capita, colour=factor(Year))) +
@@ -278,12 +263,9 @@ mortality_data %>%
        x="Date", y="Mortality per capita") + theme_davidish()
 ```
 
-![](README_files/figure-html/unnamed-chunk-9-1.png)<!-- -->
-
 Gam smoothed, the years prior to 2020 look more like
 
-
-```r
+```{r}
 mortality_data %>%
   filter(Year < 2020) %>%
   ggplot(aes(x=Week, y=deaths_per_capita, colour=factor(Year))) +
@@ -294,12 +276,9 @@ mortality_data %>%
        x="Week of year", y="Mortality per capita") + theme_davidish()
 ```
 
-![](README_files/figure-html/unnamed-chunk-10-1.png)<!-- -->
 
 
-
-
-```r
+```{r}
 mortality_data %>%
   filter(Year < 2020) %>%
   mutate(Season = case_when(month(Period) %in% c(12,1,2) ~ "Summer",
@@ -317,14 +296,11 @@ mortality_data %>%
        x="Year", y="Mortality per capita") + theme_davidish()
 ```
 
-![](README_files/figure-html/unnamed-chunk-11-1.png)<!-- -->
-
 In New Zealand's case, there is a noticiable drop in mortality in the first couple of years, then relatively stable, so getting an aggregate value using 2015-2019 data seems to make sense where the mean is the same as the regression trend.
 From 2015 on, it also seems a stable pattern for all times of the year, relevant when potential singling out certain times of the year.
 
 So the expected deaths could be represented as the mean of each aggregate week of the year from 2015-2019
-
-```r
+```{r}
 expected_mort <- mortality_data %>%
   filter(Year < 2020, Year > 2014) %>%
   group_by(Week, Label1) %>%
@@ -335,13 +311,10 @@ ggplot(expected_mort, aes(x=Week, y=mean_deaths_per_capita, colour=Label1)) +
        x="Week of year", y="Mortality per capita") + theme_davidish()
 ```
 
-![](README_files/figure-html/unnamed-chunk-12-1.png)<!-- -->
-
 This does, visually, look like a very noisy estimate in the younger age ranges, but the reality is there are so few weekly deaths that the fluctuations only reflect differences of a few individuals.
 
 
-
-```r
+```{r}
 excess <- expected_mort %>% 
   inner_join(mortality_data,by = c("Week", "Label1")) %>%
   mutate(weekly_excess_rate = deaths_per_capita - mean_deaths_per_capita,
@@ -356,8 +329,7 @@ For those who want to explore this data using their own tools, rather than R, al
 
 To get cumulative lives saved, add up the excess mortality and multiple by -1. This can be done for the individual age groups within the data.
 
-
-```r
+```{r}
 excess %>% filter(Period > as.Date("2020-03-20")) %>%
   arrange(Label1,Period) %>%
   group_by(Label1) %>%
@@ -368,14 +340,12 @@ excess %>% filter(Period > as.Date("2020-03-20")) %>%
   geom_line() + facet_wrap(~Label1, ncol=2, scales="free_y") +
   labs(title="Cummulative lives saved since lockdown NZ March 2020, by age",
        x="Date", y="Lives Saved") + theme_davidish()
+  
 ```
-
-![](README_files/figure-html/unnamed-chunk-14-1.png)<!-- -->
 
 But those individual age groups can be added together to get total lives saved
 
-
-```r
+```{r}
 excess %>% filter(Period > as.Date("2020-03-20")) %>%
   arrange(Label1,Period) %>%
   group_by(Period) %>%
@@ -388,26 +358,19 @@ excess %>% filter(Period > as.Date("2020-03-20")) %>%
   geom_line() + geom_point()  +
   labs(title="Cummulative lives saved since lockdown NZ March 2020",
        x="Date", y="Lives Saved") + theme_davidish()
+  
+  
 ```
-
-![](README_files/figure-html/unnamed-chunk-15-1.png)<!-- -->
 
 # Detected
 
 Of particular interest to me is the period of the Omicron rise through March of 2022, as Australia have just released there provisional excess mortality for January 2022 (the similar point in the Omicron wave). So we can compare how NZ excess deaths compared to covid identification from March 7th to April 3rd (inclusive)
 
-
-```r
+```{r}
 excess %>% filter(Period > as.Date("2022-03-06"),
                   Period < as.Date("2022-04-04")) %>%
   summarise(excess_deaths = sum(weekly_excess_number), .groups="drop")
-```
-
-```
-## # A tibble: 1 × 1
-##   excess_deaths
-##           <dbl>
-## 1          244.
+  
 ```
 
 There were 244 excess NZ deaths, compared to 321 confirmed covid deaths (source:OurWorldInData)
